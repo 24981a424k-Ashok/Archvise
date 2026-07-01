@@ -26,14 +26,27 @@ type SignUpFormValues = z.infer<typeof signUpSchema>
 
 export default function SignUpPage() {
   const router = useRouter()
-  const { signUp, user, loading: authLoading } = useAuth()
+  const { signUp, user, loading: authLoading, guestLogin } = useAuth()
   const [loading, setLoading] = React.useState(false)
+  const [guestLoading, setGuestLoading] = React.useState(false)
 
   React.useEffect(() => {
     if (!authLoading && user) {
       router.push('/dashboard')
     }
   }, [user, authLoading, router])
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true)
+    try {
+      await guestLogin()
+      router.push('/dashboard')
+    } catch (e) {
+      // handled
+    } finally {
+      setGuestLoading(false)
+    }
+  }
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
@@ -166,6 +179,19 @@ export default function SignUpPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4 pt-0 border-t border-border mt-4 py-4 text-center">
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full text-xs font-bold uppercase tracking-wider h-10 border-dashed border-primary/40 hover:border-primary text-primary"
+            onClick={handleGuestLogin}
+            disabled={loading || guestLoading}
+          >
+            {guestLoading ? (
+              <Loader2 size={14} className="animate-spin mr-1.5" />
+            ) : null}
+            <span>Try Guest Access (Free)</span>
+          </Button>
+
           <p className="text-[11px] text-textSecondary">
             Already have an account?{" "}
             <Link href="/sign-in" className="text-primary hover:text-primaryLight hover:underline font-semibold">

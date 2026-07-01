@@ -81,6 +81,21 @@ export function useAuth() {
     }
   };
 
+  const guestLogin = async () => {
+    setLoading(true);
+    try {
+      const dbUser = await api.post<User>('/auth/guest', {});
+      setUser(dbUser);
+      toast.success("Welcome! Entered as Guest.");
+      return dbUser;
+    } catch (e: any) {
+      toast.error(e.message || "Failed to enter as guest.");
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     setLoading(true);
     try {
@@ -100,6 +115,7 @@ export function useAuth() {
     loading,
     login,
     signUp,
+    guestLogin,
     logout: handleLogout
   };
 }

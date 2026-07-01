@@ -15,15 +15,18 @@ export function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   if (isProtectedRoute && !hasSession) {
-    // Redirect to sign-in page if not logged in
-    const signInUrl = new URL('/sign-in', request.url);
+    // Redirect to sign-in page if not logged in using Edge-compatible cloned URL
+    const signInUrl = request.nextUrl.clone();
+    signInUrl.pathname = '/sign-in';
     signInUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(signInUrl);
   }
 
   if (isAuthRoute && hasSession) {
-    // Redirect to dashboard if already logged in
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // Redirect to dashboard if already logged in using Edge-compatible cloned URL
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = '/dashboard';
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return NextResponse.next();

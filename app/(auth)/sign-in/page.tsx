@@ -22,8 +22,14 @@ type SignInFormValues = z.infer<typeof signInSchema>
 
 export default function SignInPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, user, loading: authLoading } = useAuth()
   const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard')
+    }
+  }, [user, authLoading, router])
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignInFormValues>({
     resolver: zodResolver(signInSchema),

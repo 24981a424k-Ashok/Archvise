@@ -1,4 +1,15 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const getApiUrl = () => {
+  let url = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  // Remove trailing slash if present
+  url = url.replace(/\/$/, "");
+  // Append /api if not present at the end
+  if (!url.endsWith("/api")) {
+    url = url + "/api";
+  }
+  return url;
+};
+
+const API_URL = getApiUrl();
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {

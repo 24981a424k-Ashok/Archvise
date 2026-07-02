@@ -19,22 +19,41 @@ export function useAuth() {
 
   // Sync user state on reload
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          // Verify with backend to ensure session cookie is present and get DB user details
-          const dbUser = await api.get<User>('/auth/me');
-          setUser(dbUser);
-        } catch (e) {
-          logger.error("Failed to sync backend session:", e);
-          // If backend session failed, clear client login
-          await signOut(auth);
-          clearStore();
-        }
-      } else {
+    const syncSession = async () => {
+      try {
+        const dbUser = await api.get<User>('/auth/me');
+        setUser(dbUser);
+      } catch (e) {
+        logger.error("Failed to sync backend session:", e);
+        localStorage.removeItem("archvise_token");
         clearStore();
       }
       setLoading(false);
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken(true);
+          localStorage.setItem("archvise_token", idToken);
+          const dbUser = await api.get<User>('/auth/me');
+          setUser(dbUser);
+        } catch (e) {
+          logger.error("Failed to sync Firebase backend session:", e);
+          await signOut(auth);
+          localStorage.removeItem("archvise_token");
+          clearStore();
+        }
+        setLoading(false);
+      } else {
+        const token = localStorage.getItem("archvise_token");
+        if (token) {
+          syncSession();
+        } else {
+          clearStore();
+          setLoading(false);
+        }
+      }
     });
 
     return () => unsubscribe();
@@ -45,13 +64,15 @@ export function useAuth() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await userCredential.user.getIdToken(true);
+      localStorage.setItem("archvise_token", idToken);
       
-      // Verify token with backend and set secure cookie
+      // Verify token with backend
       const dbUser = await api.post<User>('/auth/verify-token', { id_token: idToken });
       setUser(dbUser);
       toast.success("Welcome back to Archvise!");
       return dbUser;
     } catch (e: any) {
+      localStorage.removeItem("archvise_token");
       toast.error(e.message || "Failed to sign in. Please verify credentials.");
       throw e;
     } finally {
@@ -67,6 +88,7 @@ export function useAuth() {
       await updateProfile(userCredential.user, { displayName: name });
       
       const idToken = await userCredential.user.getIdToken(true);
+      localStorage.setItem("archvise_token", idToken);
       
       // Verify token with backend, sets cookie and creates database user
       const dbUser = await api.post<User>('/auth/verify-token', { id_token: idToken });
@@ -74,6 +96,7 @@ export function useAuth() {
       toast.success("Welcome to Archvise! Your account has been created.");
       return dbUser;
     } catch (e: any) {
+      localStorage.removeItem("archvise_token");
       toast.error(e.message || "Failed to sign up.");
       throw e;
     } finally {
@@ -84,11 +107,13 @@ export function useAuth() {
   const guestLogin = async () => {
     setLoading(true);
     try {
+      localStorage.setItem("archvise_token", "guest_token_session_2026");
       const dbUser = await api.post<User>('/auth/guest', {});
       setUser(dbUser);
       toast.success("Welcome! Entered as Guest.");
       return dbUser;
     } catch (e: any) {
+      localStorage.removeItem("archvise_token");
       toast.error(e.message || "Failed to enter as guest.");
       throw e;
     } finally {
@@ -101,11 +126,12 @@ export function useAuth() {
     try {
       await signOut(auth);
       await api.post('/auth/logout', {});
+    } catch (e: any) {
+      // Ignore network errors on logout
+    } finally {
+      localStorage.removeItem("archvise_token");
       clearStore();
       toast.info("Logged out successfully");
-    } catch (e: any) {
-      toast.error("Logout failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };

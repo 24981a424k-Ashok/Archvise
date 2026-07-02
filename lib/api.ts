@@ -12,10 +12,16 @@ const getApiUrl = () => {
 const API_URL = getApiUrl();
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("archvise_token") : null;
+  const headers = new Headers(options.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
   })
 
   if (response.status === 401) {
@@ -42,18 +48,27 @@ export const api = {
   patch:  <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
-  upload: <T>(path: string, formData: FormData) =>
-    fetch(`${API_URL}${path}`, { method: 'POST', credentials: 'include',
-      body: formData }).then(r => {
-        if (r.status === 401) {
-          if (typeof window !== "undefined" && window.location.pathname !== "/sign-in") {
-            window.location.href = '/sign-in'
-          }
-          throw new Error('Not authenticated')
+  upload: <T>(path: string, formData: FormData) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("archvise_token") : null;
+    const headers = new Headers();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return fetch(`${API_URL}${path}`, { 
+      method: 'POST', 
+      headers,
+      body: formData 
+    }).then(r => {
+      if (r.status === 401) {
+        if (typeof window !== "undefined" && window.location.pathname !== "/sign-in") {
+          window.location.href = '/sign-in'
         }
-        if (!r.ok) {
-          throw new Error('Upload failed')
-        }
-        return r.json()
-      }) as Promise<T>,
+        throw new Error('Not authenticated')
+      }
+      if (!r.ok) {
+        throw new Error('Upload failed')
+      }
+      return r.json()
+    }) as Promise<T>;
+  },
 }

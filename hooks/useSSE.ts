@@ -96,8 +96,6 @@ export function useDesignStream(jobId: string | null) {
     });
 
     es.addEventListener('job_complete', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setResultId(data.design_id);
       setStatus('complete');
       es.close();
     });

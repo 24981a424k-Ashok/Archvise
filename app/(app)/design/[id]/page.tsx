@@ -31,7 +31,10 @@ export default function DesignResultPage() {
     queryKey: ['design', targetId],
     queryFn: () => api.get<SystemDesign>(`/design/${targetId}`),
     enabled: !!targetId && !isStreaming,
-    retry: 1
+    retry: 2,
+    retryDelay: 2000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
 
   const handleShare = async () => {
@@ -51,8 +54,13 @@ export default function DesignResultPage() {
   }
 
   // Render stream view
+  const handleCancel = () => {
+    router.push('/design/new')
+    toast.info('Generation cancelled. Start a new design anytime.')
+  }
+
   if (isStreaming) {
-    return <DesignProgressStream steps={steps} />
+    return <DesignProgressStream steps={steps} onCancel={handleCancel} />
   }
 
   // Render skeleton load

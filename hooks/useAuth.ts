@@ -1,54 +1,47 @@
 import { useState, useEffect } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  updateProfile,
-  onAuthStateChanged,
-  User as FirebaseUser
-} from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { User } from '@/types';
 import { toast } from 'sonner';
 
+// Minimal logger to prevent unresolved references
+const logger = {
+  error: (...args: any[]) => {
+    console.error(...args);
+  }
+};
+
 export function useAuth() {
   const [loading, setLoading] = useState(true);
   const { user, setUser, logout: clearStore } = useAuthStore();
 
-  // Sync user state on reload
+  // Sync user state on reload via Supabase session listener
   useEffect(() => {
-    const syncSession = async () => {
+    const syncBackend = async (accessToken: string) => {
       try {
+        localStorage.setItem('archvise_token', accessToken);
         const dbUser = await api.get<User>('/auth/me');
         setUser(dbUser);
       } catch (e) {
-        logger.error("Failed to sync backend session:", e);
-        localStorage.removeItem("archvise_token");
+        logger.error('Failed to sync backend session:', e);
+        localStorage.removeItem('archvise_token');
         clearStore();
       }
       setLoading(false);
     };
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const idToken = await firebaseUser.getIdToken(true);
-          localStorage.setItem("archvise_token", idToken);
-          const dbUser = await api.get<User>('/auth/me');
-          setUser(dbUser);
-        } catch (e) {
-          logger.error("Failed to sync Firebase backend session:", e);
-          await signOut(auth);
-          localStorage.removeItem("archvise_token");
-          clearStore();
-        }
-        setLoading(false);
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        syncBackend(session.access_token);
       } else {
-        const token = localStorage.getItem("archvise_token");
-        if (token) {
-          syncSession();
+        // Check if we have a guest token
+        const token = localStorage.getItem('archvise_token');
+        if (token === 'guest_token_session_2026') {
+          api.get<User>('/auth/me')
+            .then(dbUser => { setUser(dbUser); setLoading(false); })
+            .catch(() => { clearStore(); setLoading(false); });
         } else {
           clearStore();
           setLoading(false);
@@ -56,24 +49,40 @@ export function useAuth() {
       }
     });
 
-    return () => unsubscribe();
+    // Listen for auth state changes (sign-in / sign-out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.access_token) {
+        await syncBackend(session.access_token);
+      } else if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('archvise_token');
+        clearStore();
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        // Update stored token on refresh
+        localStorage.setItem('archvise_token', session.access_token);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [setUser, clearStore]);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const idToken = await userCredential.user.getIdToken(true);
-      localStorage.setItem("archvise_token", idToken);
-      
-      // Verify token with backend
-      const dbUser = await api.post<User>('/auth/verify-token', { id_token: idToken });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
+
+      const accessToken = data.session!.access_token;
+      localStorage.setItem('archvise_token', accessToken);
+
+      // Verify token with backend and create/load DB user
+      const dbUser = await api.post<User>('/auth/verify-token', { access_token: accessToken });
       setUser(dbUser);
-      toast.success("Welcome back to Archvise!");
+      toast.success('Welcome back to Archvise!');
       return dbUser;
     } catch (e: any) {
-      localStorage.removeItem("archvise_token");
-      toast.error(e.message || "Failed to sign in. Please verify credentials.");
+      localStorage.removeItem('archvise_token');
+      toast.error(e.message || 'Failed to sign in. Please verify credentials.');
       throw e;
     } finally {
       setLoading(false);
@@ -83,21 +92,31 @@ export function useAuth() {
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Set display name in Firebase
-      await updateProfile(userCredential.user, { displayName: name });
-      
-      const idToken = await userCredential.user.getIdToken(true);
-      localStorage.setItem("archvise_token", idToken);
-      
-      // Verify token with backend, sets cookie and creates database user
-      const dbUser = await api.post<User>('/auth/verify-token', { id_token: idToken });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } }
+      });
+      if (error) throw new Error(error.message);
+
+      const accessToken = data.session?.access_token;
+      if (!accessToken) {
+        // Email confirmation required — inform user
+        toast.success('Account created! Please check your email to confirm your account.');
+        setLoading(false);
+        return null;
+      }
+
+      localStorage.setItem('archvise_token', accessToken);
+
+      // Verify token with backend — creates DB user
+      const dbUser = await api.post<User>('/auth/verify-token', { access_token: accessToken });
       setUser(dbUser);
-      toast.success("Welcome to Archvise! Your account has been created.");
+      toast.success('Welcome to Archvise! Your account has been created.');
       return dbUser;
     } catch (e: any) {
-      localStorage.removeItem("archvise_token");
-      toast.error(e.message || "Failed to sign up.");
+      localStorage.removeItem('archvise_token');
+      toast.error(e.message || 'Failed to sign up.');
       throw e;
     } finally {
       setLoading(false);
@@ -107,14 +126,14 @@ export function useAuth() {
   const guestLogin = async () => {
     setLoading(true);
     try {
-      localStorage.setItem("archvise_token", "guest_token_session_2026");
+      localStorage.setItem('archvise_token', 'guest_token_session_2026');
       const dbUser = await api.post<User>('/auth/guest', {});
       setUser(dbUser);
-      toast.success("Welcome! Entered as Guest.");
+      toast.success('Welcome! Entered as Guest.');
       return dbUser;
     } catch (e: any) {
-      localStorage.removeItem("archvise_token");
-      toast.error(e.message || "Failed to enter as guest.");
+      localStorage.removeItem('archvise_token');
+      toast.error(e.message || 'Failed to enter as guest.');
       throw e;
     } finally {
       setLoading(false);
@@ -124,14 +143,14 @@ export function useAuth() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       await api.post('/auth/logout', {});
     } catch (e: any) {
       // Ignore network errors on logout
     } finally {
-      localStorage.removeItem("archvise_token");
+      localStorage.removeItem('archvise_token');
       clearStore();
-      toast.info("Logged out successfully");
+      toast.info('Logged out successfully');
       setLoading(false);
     }
   };
@@ -145,10 +164,3 @@ export function useAuth() {
     logout: handleLogout
   };
 }
-
-// Minimal logger to prevent unresolved references
-const logger = {
-  error: (...args: any[]) => {
-    console.error(...args);
-  }
-};

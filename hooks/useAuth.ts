@@ -155,12 +155,31 @@ export function useAuth() {
     }
   };
 
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/dashboard'
+        }
+      });
+      if (error) throw new Error(error.message);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to initialize Google login.');
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     user,
     loading,
     login,
     signUp,
     guestLogin,
+    loginWithGoogle,
     logout: handleLogout
   };
 }

@@ -1,5 +1,8 @@
-import React from 'react'
+"use client"
+
+import React, { useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ArchviseLogo from '@/components/brand/ArchviseLogo'
 import Hero from '@/components/landing/Hero'
 import ProblemSection from '@/components/landing/ProblemSection'
@@ -8,8 +11,27 @@ import AgentIntro from '@/components/landing/AgentIntro'
 import PricingTeaser from '@/components/landing/PricingTeaser'
 import Footer from '@/components/landing/Footer'
 import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/stores/authStore'
 
 export default function LandingPage() {
+  const router = useRouter()
+  const { user } = useAuthStore()
+
+  useEffect(() => {
+    if (user) {
+      router.push('/dashboard')
+    }
+  }, [user, router])
+
+  if (user) {
+    return (
+      <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center select-none text-center">
+        <ArchviseLogo size={48} className="text-primary animate-pulse mb-4" />
+        <p className="text-xs text-textSecondary font-semibold tracking-wider uppercase">Redirecting to dashboard...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background text-textPrimary overflow-hidden flex flex-col">
       {/* SECTION 1 — Sticky Transparent Navbar */}

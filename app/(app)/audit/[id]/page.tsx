@@ -197,12 +197,12 @@ export default function AuditResultPage() {
         <div className="space-y-1">
           <p className="text-[10px] text-textMuted leading-relaxed">{report.score_disclaimer}</p>
           <a 
-            href="https://k6.io" 
+            href="https://locust.io" 
             target="_blank" 
             rel="noopener noreferrer" 
             className="text-[10px] text-primary hover:text-primaryLight hover:underline font-semibold block"
           >
-            Learn about load testing with k6 &rarr;
+            Learn about load testing with Locust &rarr;
           </a>
         </div>
       </Card>

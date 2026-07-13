@@ -2,11 +2,14 @@
 
 import React from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield, Building2, Calendar } from 'lucide-react'
+import { Shield, Building2, Calendar, Trash2, Loader2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card } from '../ui/card'
 import StatusBadge from './StatusBadge'
 import { Project } from '@/types'
+import { api } from '@/lib/api'
+import { toast } from 'sonner'
 
 interface ProjectCardProps {
   project: Project
@@ -14,12 +17,33 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const [deleting, setDeleting] = React.useState(false)
 
   const handleCardClick = () => {
     if (project.type === 'audit') {
       router.push(`/audit/${project.id}`)
     } else {
       router.push(`/design/${project.id}`)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to permanently delete this project?')) return;
+    
+    setDeleting(true)
+    try {
+      if (project.type === 'audit') {
+        await api.delete(`/audit/${project.id}`)
+      } else {
+        await api.delete(`/design/${project.id}`)
+      }
+      toast.success('Project deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete project')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -68,13 +92,25 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         </div>
       </div>
 
-      {/* Right side StatusBadge */}
-      <div className="shrink-0" onClick={e => e.stopPropagation()}>
+      {/* Right side StatusBadge and Delete button */}
+      <div className="shrink-0 flex items-center space-x-3.5" onClick={e => e.stopPropagation()}>
         <StatusBadge 
           status={project.status} 
           type={project.type} 
           score={project.readiness_score} 
         />
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-textMuted hover:text-danger p-1.5 rounded-md hover:bg-dangerBg transition-colors disabled:opacity-50"
+          title="Delete Project"
+        >
+          {deleting ? (
+            <Loader2 size={15} className="animate-spin text-danger" />
+          ) : (
+            <Trash2 size={15} />
+          )}
+        </button>
       </div>
     </Card>
   )

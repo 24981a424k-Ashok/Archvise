@@ -63,8 +63,19 @@ export default function AuditResultPage() {
   }
 
   // Render Live SSE progress stream
+  const handleCancel = async () => {
+    try {
+      await api.post(`/audit/${targetId}/cancel`, {})
+    } catch (e) {
+      console.error("Failed to cancel audit job:", e)
+    }
+    router.push('/audit/new')
+    toast.info('Generation cancelled. Start a new audit anytime.')
+  }
+
+  // Render Live SSE progress stream
   if (isStreaming) {
-    return <AuditProgressStream steps={steps} />
+    return <AuditProgressStream steps={steps} onCancel={handleCancel} />
   }
 
   // Render Loader while fetching report details

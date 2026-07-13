@@ -54,7 +54,12 @@ export default function DesignResultPage() {
   }
 
   // Render stream view
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    try {
+      await api.post(`/design/${targetId}/cancel`, {})
+    } catch (e) {
+      console.error("Failed to cancel design job:", e)
+    }
     router.push('/design/new')
     toast.info('Generation cancelled. Start a new design anytime.')
   }

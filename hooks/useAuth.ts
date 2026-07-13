@@ -13,58 +13,7 @@ const logger = {
 };
 
 export function useAuth() {
-  const [loading, setLoading] = useState(true);
-  const { user, setUser, logout: clearStore } = useAuthStore();
-
-  // Sync user state on reload via Supabase session listener
-  useEffect(() => {
-    const syncBackend = async (accessToken: string) => {
-      try {
-        localStorage.setItem('archvise_token', accessToken);
-        const dbUser = await api.get<User>('/auth/me');
-        setUser(dbUser);
-      } catch (e) {
-        logger.error('Failed to sync backend session:', e);
-        localStorage.removeItem('archvise_token');
-        clearStore();
-      }
-      setLoading(false);
-    };
-
-    // Check existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) {
-        syncBackend(session.access_token);
-      } else {
-        // Check if we have a guest token
-        const token = localStorage.getItem('archvise_token');
-        if (token === 'guest_token_session_2026') {
-          api.get<User>('/auth/me')
-            .then(dbUser => { setUser(dbUser); setLoading(false); })
-            .catch(() => { clearStore(); setLoading(false); });
-        } else {
-          clearStore();
-          setLoading(false);
-        }
-      }
-    });
-
-    // Listen for auth state changes (sign-in / sign-out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.access_token) {
-        await syncBackend(session.access_token);
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('archvise_token');
-        clearStore();
-        setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-        // Update stored token on refresh
-        localStorage.setItem('archvise_token', session.access_token);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [setUser, clearStore]);
+  const { user, loading, setUser, setLoading, logout: clearStore } = useAuthStore();
 
   const login = async (email: string, password: string) => {
     setLoading(true);

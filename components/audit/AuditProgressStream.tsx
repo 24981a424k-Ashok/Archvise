@@ -2,8 +2,9 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Shield, Check, Loader2 } from 'lucide-react'
+import { Shield, Check, Loader2, X } from 'lucide-react'
 import { Card } from '../ui/card'
+import { Button } from '../ui/button'
 import { cn } from '@/lib/utils'
 
 interface Step {
@@ -14,9 +15,10 @@ interface Step {
 
 interface AuditProgressStreamProps {
   steps: Step[]
+  onCancel?: () => void
 }
 
-export default function AuditProgressStream({ steps }: AuditProgressStreamProps) {
+export default function AuditProgressStream({ steps, onCancel }: AuditProgressStreamProps) {
   const getAgentColor = (agent: string) => {
     switch (agent) {
       case 'connecting': return 'bg-primary border-primary'
@@ -97,7 +99,20 @@ export default function AuditProgressStream({ steps }: AuditProgressStreamProps)
       </Card>
 
       <span className="text-xs text-textMuted font-semibold mb-1 block">Usually takes 20-40 seconds</span>
-      <span className="text-[10px] text-textMuted block">Files are permanently deleted after analysis.</span>
+      <span className="text-[10px] text-textMuted block mb-6">Files are permanently deleted after analysis.</span>
+
+      {/* Cancel button */}
+      {onCancel && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onCancel}
+          className="flex items-center space-x-1.5 text-danger border-danger/30 hover:bg-danger/10 hover:text-danger"
+        >
+          <X size={13} />
+          <span>Cancel Generation</span>
+        </Button>
+      )}
     </div>
   )
 }

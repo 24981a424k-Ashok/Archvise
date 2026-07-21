@@ -24,18 +24,20 @@ export default function DesignResultPage() {
   const { steps, status, resultId } = useDesignStream(jobId)
 
   const targetId = resultId || id
-  const isStreaming = status === 'streaming'
 
   // Fetch system design
   const { data: design, isLoading: isDesignLoading, error: designError, refetch } = useQuery<SystemDesign>({
     queryKey: ['design', targetId],
     queryFn: () => api.get<SystemDesign>(`/design/${targetId}`),
-    enabled: !!targetId && !isStreaming,
+    enabled: !!targetId,
     retry: 2,
     retryDelay: 2000,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })
+
+  // If design data is already loaded and completed, we are NOT streaming (prevents tab switch loading loop)
+  const isStreaming = status === 'streaming' && !design
 
   const handleShare = async () => {
     try {

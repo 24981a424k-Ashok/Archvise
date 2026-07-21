@@ -35,20 +35,24 @@ export default function AuditResultPage() {
   // Fetch audit report
   // If resultId from stream is set, fetch using resultId, otherwise use id parameter
   const targetId = resultId || id
-  const isStreaming = status === 'streaming'
 
   const { data: report, isLoading: isReportLoading, error: reportError, refetch } = useQuery<AuditReport>({
     queryKey: ['audit', targetId],
     queryFn: () => api.get<AuditReport>(`/audit/${targetId}`),
-    enabled: !!targetId && !isStreaming,
+    enabled: !!targetId,
     retry: 1
   })
 
-  // Fetch project details to get the project name
+  // If report data is already loaded and cached, we are NOT streaming (prevents tab switch loading loop)
+  const isStreaming = status === 'streaming' && !report
+
+  // Fetch project details to get the project name via audit history
   const { data: project } = useQuery<Project | undefined>({
     queryKey: ['project', targetId],
-    queryFn: () => api.get<Project[]>(`/projects/recent`).then(list => list.find(p => p.id === targetId) || api.get<Project[]>(`/projects/all`).then(list2 => list2.find(p2 => p2.id === targetId))),
-    enabled: !!targetId
+    queryFn: () =>
+      api.get<Project[]>(`/audit/history?limit=50`)
+        .then((list) => list.find((p) => p.id === targetId)),
+    enabled: !!targetId,
   })
 
   const handleShare = () => {
